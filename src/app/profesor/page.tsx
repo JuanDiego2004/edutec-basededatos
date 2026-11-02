@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/funcionalidades/autenticacion/ganchos/useAuth";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/servicios/base-datos/supabase";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/componentes/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/componentes/ui/card";
 import { Button } from "@/componentes/ui/button";
@@ -26,6 +26,7 @@ import { TabEvaluaciones } from "@/funcionalidades/profesores/componentes/TabEva
 import { TabEstadisticas } from "@/funcionalidades/profesores/componentes/TabEstadisticas";
 import { ModalVerEstudiantes } from "@/funcionalidades/profesores/componentes/ModalVerEstudiantes";
 import { ModalVerNotas } from "@/funcionalidades/profesores/componentes/ModalVerNotas";
+import { ThemeToggle } from "@/componentes/ThemeToggle";
 
 export default function ProfesorDashboard() {
     const { user, signOut, loading: authLoading } = useAuth();
@@ -265,14 +266,14 @@ export default function ProfesorDashboard() {
 
             
             if (asistenciasParaInsertar.length > 0) {
-                const { error: insertError } = await supabaseFailover.insert("asistencias", asistenciasParaInsertar);
+                const { error: insertError } = await supabaseDB.insert("asistencias", asistenciasParaInsertar);
                 if (insertError) throw insertError;
             }
 
             
             for (const asistencia of asistenciasParaActualizar) {
                 const { id, ...datos } = asistencia;
-                const { error: updateError } = await supabaseFailover.update("asistencias", id, datos);
+                const { error: updateError } = await supabaseDB.update("asistencias", id, datos);
                 if (updateError) throw updateError;
             }
 
@@ -624,7 +625,7 @@ export default function ProfesorDashboard() {
             }
 
             
-            const { error } = await supabaseFailover.insert("evaluaciones", evaluacionesToInsert);
+            const { error } = await supabaseDB.insert("evaluaciones", evaluacionesToInsert);
 
             if (error) throw error;
 
@@ -991,6 +992,8 @@ export default function ProfesorDashboard() {
                                     </p>
                                 </div>
                             </div>
+
+                            <ThemeToggle />
 
                             <Button variant="outline" onClick={handleSignOut} className="hidden sm:flex ml-2">
                                 <LogOut className="h-4 w-4 mr-2" />

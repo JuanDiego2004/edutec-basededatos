@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from "react";
 import { User, Session, AuthError } from "@supabase/supabase-js";
 import { supabaseAuth } from "@/servicios/base-datos/supabaseAuth";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { useRouter } from "next/navigation";
 import { activityLogger } from "@/servicios/logger/registroActividad";
 import { toast } from "sonner";
@@ -22,11 +22,20 @@ const mapRoleToSupabase = (role: UserRole): SupabaseRole | null => {
   return null;
 };
 
-const mapRoleFromSupabase = (role: SupabaseRole): UserRole => {
-  if (role === "teacher") return "profesor";
-  if (role === "student") return "estudiante";
-  if (role === "admin") return "admin";
-  return null;
+const mapRoleFromSupabase = (role: SupabaseRole | UserRole | string | null): UserRole => {
+  switch (role?.trim().toLowerCase()) {
+    case "teacher":
+    case "profesor":
+      return "profesor";
+    case "student":
+    case "estudiante":
+      return "estudiante";
+    case "admin":
+    case "administrador":
+      return "admin";
+    default:
+      return null;
+  }
 };
 
 interface AuthContextType {
@@ -53,81 +62,94 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   
   useEffect(() => {
-    
-    const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
+    let active = true;
+    let authEventReceived = false;
+    let sessionVersion = 0;
 
-        if (session?.user) {
-          
-          const cliente = supabaseFailover.getDirectClient();
-          const { data } = await cliente
+    const applySession = async (session: Session | null) => {
+      const currentVersion = ++sessionVersion;
+      setSession(session);
+      setUser(session?.user ?? null);
+
+      if (session?.user) {
+        try {
+          const cliente = supabaseDB.getDirectClient();
+          const { data, error } = await cliente
             .from("user_roles")
             .select("role")
             .eq("user_id", session.user.id)
             .single();
 
-          
-          const supabaseRole = (data as any)?.role as SupabaseRole;
-          const userRole = mapRoleFromSupabase(supabaseRole);
+          if (!active || currentVersion !== sessionVersion) return;
+          if (error) throw error;
+          const userRole = mapRoleFromSupabase((data as any)?.role as string | null);
           setRole(userRole);
 
-          
           const currentPath = window.location.pathname;
-          if (currentPath !== '/auth') {
-            if (userRole === 'admin' && !currentPath.startsWith('/admin')) {
-              router.push('/admin');
-            } else if (userRole === 'profesor' && !currentPath.startsWith('/profesor')) {
-              router.push('/profesor');
-            } else if (userRole === 'estudiante' && !currentPath.startsWith('/estudiante')) {
-              router.push('/estudiante');
+          if (currentPath !== "/auth") {
+            if (userRole === "admin" && !currentPath.startsWith("/admin")) {
+              router.push("/admin");
+            } else if (userRole === "profesor" && !currentPath.startsWith("/profesor")) {
+              router.push("/profesor");
+            } else if (userRole === "estudiante" && !currentPath.startsWith("/estudiante")) {
+              router.push("/estudiante");
             }
           }
-        } else {
+        } catch (error) {
+          if (!active || currentVersion !== sessionVersion) return;
+          console.error("Error cargando el rol del usuario:", error);
           setRole(null);
-          
-          if (window.location.pathname !== '/auth') {
-            router.push('/auth');
-          }
         }
+      } else {
+        setRole(null);
 
-        setLoading(false);
+        if (window.location.pathname !== "/auth") {
+          router.push("/auth");
+        }
+      }
+
+      if (active && currentVersion === sessionVersion) setLoading(false);
+    };
+
+    // Supabase recomienda no esperar consultas de Supabase dentro del callback de auth.
+    // Diferimos el procesamiento para que el callback libere el bloqueo interno primero.
+    const { data: { subscription } } = supabaseAuth.auth.onAuthStateChange(
+      (_event, session) => {
+        authEventReceived = true;
+        setSession(session);
+        setUser(session?.user ?? null);
+        if (session?.user) setLoading(true);
+        void Promise.resolve().then(() => applySession(session));
       }
     );
 
-    
-    supabaseAuth.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    void supabaseAuth.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!authEventReceived) return applySession(session);
+      })
+      .catch((error) => {
+        console.error("Error recuperando la sesión:", error);
+        if (active) setLoading(false);
+      });
 
-      if (session?.user) {
-        
-        const cliente = supabaseFailover.getDirectClient();
-        const { data } = await cliente
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id)
-          .single();
-
-        
-        const supabaseRole = (data as any)?.role as SupabaseRole;
-        setRole(mapRoleFromSupabase(supabaseRole));
-      }
-
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [router]);
 
   
   
   
   const signIn = async (email: string, password: string): Promise<{ error: AuthError | null }> => {
-    console.log("🔐 [Auth] Intentando login con:", email);
-    
-    const { error } = await supabaseAuth.auth.signInWithPassword({ email, password });
+    const correoNormalizado = email.trim();
+    console.log("🔐 [Auth] Intentando login con:", correoNormalizado);
+
+    if (email !== correoNormalizado) {
+      return { error: new AuthError("Ingresa tu correo electrónico.") };
+    }
+
+    const { error } = await supabaseAuth.auth.signInWithPassword({ email: correoNormalizado, password });
 
     if (!error) {
       console.log(" [Auth] Login exitoso");
@@ -138,22 +160,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         console.log("👤 User ID:", uid);
 
         
-        const cliente = supabaseFailover.getDirectClient();
-        const { data } = await cliente
+        const cliente = supabaseDB.getDirectClient();
+        const { data, error: roleError } = await cliente
           .from("user_roles")
           .select("role")
           .eq("user_id", uid)
           .single();
 
         
-        const supabaseRole = (data as any)?.role as SupabaseRole;
+        if (roleError) {
+          await supabaseAuth.auth.signOut();
+          return { error: new AuthError(`No se pudo cargar el rol de la cuenta: ${roleError.message}`) };
+        }
+
+        const supabaseRole = (data as any)?.role as string | null;
         const uRole = mapRoleFromSupabase(supabaseRole);
         console.log(" Rol obtenido:", uRole);
+
+        if (!uRole) {
+          await supabaseAuth.auth.signOut();
+          return { error: new AuthError("La cuenta no tiene un rol válido asignado.") };
+        }
 
         setRole(uRole);
 
         
-        await activityLogger.logLogin(uid, email, uRole ?? "desconocido");
+        await activityLogger.logLogin(uid, correoNormalizado, uRole ?? "desconocido");
 
         
         
@@ -170,21 +202,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } else {
       console.error("Error de login:", error);
       
-      await activityLogger.logFailedLogin(email, error.message);
-
-      
-      if (error.message.includes("Invalid login credentials")) {
-        toast.error("Credenciales incorrectas. Verifique su correo y contraseña.");
-      } else {
-        toast.error(`Error de inicio de sesión: ${error.message}`);
-      }
+      await activityLogger.logFailedLogin(correoNormalizado, error.message);
     }
 
     return { error };
   };
-
-  
-  
   
   const signUp = async (email: string, password: string, role: UserRole): Promise<{ error: AuthError | null }> => {
     console.log("[Auth] Intentando registro con:", email, "Role:", role);
@@ -205,11 +227,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     if (!error && data.user) {
       console.log(" [Auth] Usuario creado exitosamente en Supabase Auth");
-      console.log("📊 Insertando rol en user_roles en AMBAS bases...");
+      console.log("📊 Insertando rol en user_roles...");
 
       
       
-      const { error: roleError } = await supabaseFailover.insert(
+      const { error: roleError } = await supabaseDB.insert(
         "user_roles",
         { user_id: data.user.id, role: supabaseRole }
       );

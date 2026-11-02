@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/componentes/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
@@ -108,7 +108,7 @@ export function Salones() {
     try {
       setLoading(true);
 
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const [{ data: sedesData }, { data: salonesData }, { data: profesoresData }, { data: estudiantesData }, { data: cursosData }] = await Promise.all([
         supabase.from("sedes").select("*"),
         supabase.from("salones").select("*, sedes(nombre), profesores(nombres, apellidos)").order("codigo"),
@@ -136,7 +136,7 @@ export function Salones() {
   };
 
   const loadEstudiantesCounts = async () => {
-    const supabase = supabaseFailover.getDirectClient();
+    const supabase = supabaseDB.getDirectClient();
     const counts: Record<string, number> = {};
     for (const salon of salones) {
       const { count } = await supabase
@@ -151,7 +151,7 @@ export function Salones() {
 
   const loadEstudiantesSalon = async (salonId: string) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("estudiantes_salones")
         .select("estudiante_id")
@@ -168,7 +168,7 @@ export function Salones() {
 
   const handleVerEstudiantes = async (salon: Salon) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("estudiantes_salones")
         .select("estudiante_id, estudiantes(dni, nombres, apellidos, email)")
@@ -206,7 +206,7 @@ export function Salones() {
       };
 
       if (editingSalon) {
-        const { error } = await supabaseFailover.update("salones", editingSalon.id, payload);
+        const { error } = await supabaseDB.update("salones", editingSalon.id, payload);
 
         if (error) throw error;
 
@@ -215,7 +215,7 @@ export function Salones() {
 
         toast.success("Salón actualizado exitosamente");
       } else {
-        const { error } = await supabaseFailover.insert("salones", payload);
+        const { error } = await supabaseDB.insert("salones", payload);
 
         if (error) throw error;
 
@@ -245,7 +245,7 @@ export function Salones() {
       return;
     }
 
-    const supabase = supabaseFailover.getDirectClient();
+    const supabase = supabaseDB.getDirectClient();
 
     // Buscar si ya existe este grado/sección en esta sede
     const { data: existente } = await supabase
@@ -259,14 +259,14 @@ export function Salones() {
 
     if (existente) {
       console.log(" Grado/sección ya existe:", existente.id);
-      // Asegurarnos de que esté activo EN AMBAS BASES DE DATOS
-      await supabaseFailover.update("grados_secciones", existente.id, {
+      // Asegurar que el grado/sección esté activo
+      await supabaseDB.update("grados_secciones", existente.id, {
         activo: salonData.activo
       });
     } else {
-      // Crear nuevo grado/sección EN AMBAS BASES DE DATOS
-      console.log("➕ Creando nuevo grado/sección en AMBAS bases...");
-      const { error } = await supabaseFailover.insert("grados_secciones", {
+      // Crear el nuevo grado/sección
+      console.log("➕ Creando el grado/sección...");
+      const { error } = await supabaseDB.insert("grados_secciones", {
         nivel: salonData.nivel,
         grado: salonData.grado,
         seccion: salonData.seccion,
@@ -277,9 +277,9 @@ export function Salones() {
       if (error) {
         console.error("Error creando grado/sección:", error);
         // No lanzar error aquí para no bloquear la creación del salón
-        toast.warning("Salón creado pero hubo un problema al sincronizar grado/sección");
+        toast.warning("Salón creado pero hubo un problema al guardar el grado/sección");
       } else {
-        console.log(" Grado/sección creado exitosamente en AMBAS bases de datos");
+        console.log(" Grado/sección creado exitosamente");
       }
     }
   };
@@ -305,7 +305,7 @@ export function Salones() {
 
     try {
       setLoading(true);
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       let deletedCounts = {
         estudiantes: 0,
         competencias: 0,
@@ -321,7 +321,7 @@ export function Salones() {
       if (estudiantesSalones && estudiantesSalones.length > 0) {
         console.log(`Eliminando ${estudiantesSalones.length} asignaciones de estudiantes...`);
         for (const es of estudiantesSalones) {
-          await supabaseFailover.delete("estudiantes_salones", es.id);
+          await supabaseDB.delete("estudiantes_salones", es.id);
         }
         deletedCounts.estudiantes = estudiantesSalones.length;
       }
@@ -343,19 +343,19 @@ export function Salones() {
 
           if (competencias && competencias.length > 0) {
             for (const comp of competencias) {
-              await supabaseFailover.delete("competencias", comp.id);
+              await supabaseDB.delete("competencias", comp.id);
             }
             deletedCounts.competencias += competencias.length;
           }
 
           // Eliminar salon_curso
-          await supabaseFailover.delete("salon_cursos", sc.id);
+          await supabaseDB.delete("salon_cursos", sc.id);
         }
         deletedCounts.salonCursos = salonCursos.length;
       }
 
       // 3. Eliminar el salón
-      const { error } = await supabaseFailover.delete("salones", id);
+      const { error } = await supabaseDB.delete("salones", id);
 
       if (error) throw error;
 
@@ -412,7 +412,7 @@ export function Salones() {
 
     try {
       // Eliminar asignaciones anteriores usando supabase directo (requiere .eq)
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       await supabase
         .from("estudiantes_salones")
         .delete()
@@ -427,7 +427,7 @@ export function Salones() {
           activo: true,
         }));
 
-        const { error } = await supabaseFailover.insert("estudiantes_salones", inserts);
+        const { error } = await supabaseDB.insert("estudiantes_salones", inserts);
 
         if (error) throw error;
       }
@@ -449,7 +449,7 @@ export function Salones() {
 
   const loadCursosSalon = async (salonId: string) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("salon_cursos")
         .select("*, cursos(id, codigo, nombre)")
@@ -468,7 +468,7 @@ export function Salones() {
     if (!selectedSalon) return;
 
     try {
-      const { error } = await supabaseFailover.insert("salon_cursos", {
+      const { error } = await supabaseDB.insert("salon_cursos", {
         salon_id: selectedSalon.id,
         curso_id: cursoId,
         activo: true,
@@ -489,7 +489,7 @@ export function Salones() {
 
   const handleRemoveCursoFromSalon = async (salonCursoId: string) => {
     try {
-      const { error } = await supabaseFailover.delete("salon_cursos", salonCursoId);
+      const { error } = await supabaseDB.delete("salon_cursos", salonCursoId);
 
       if (error) throw error;
       toast.success("Curso eliminado del salón");
@@ -510,7 +510,7 @@ export function Salones() {
 
   const loadCompetencias = async (salonCursoId: string) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("competencias")
         .select("*")
@@ -548,7 +548,7 @@ export function Salones() {
 
       if (editingCompetencia) {
         // Actualizar competencia existente
-        const { error } = await supabaseFailover.update("competencias", editingCompetencia.id, {
+        const { error } = await supabaseDB.update("competencias", editingCompetencia.id, {
           nombre: competenciaForm.nombre,
           descripcion: competenciaForm.descripcion,
           porcentaje: porcentaje,
@@ -559,7 +559,7 @@ export function Salones() {
         setEditingCompetencia(null);
       } else {
         // Agregar nueva competencia
-        const { error } = await supabaseFailover.insert("competencias", {
+        const { error } = await supabaseDB.insert("competencias", {
           salon_curso_id: selectedSalonCurso.id,
           nombre: competenciaForm.nombre,
           descripcion: competenciaForm.descripcion,
@@ -601,7 +601,7 @@ export function Salones() {
     if (!confirm("¿Eliminar esta competencia?")) return;
 
     try {
-      const { error } = await supabaseFailover.delete("competencias", competenciaId);
+      const { error } = await supabaseDB.delete("competencias", competenciaId);
 
       if (error) throw error;
       toast.success("Competencia eliminada");

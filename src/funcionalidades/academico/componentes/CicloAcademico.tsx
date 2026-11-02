@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { useActivityLogger } from "@/ganchos/useActivityLogger";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/componentes/ui/card";
@@ -64,7 +64,7 @@ export function CicloAcademico() {
   const loadCiclos = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabaseFailover.select("ciclos_academicos", {
+      const { data, error } = await supabaseDB.select("ciclos_academicos", {
         orden: { campo: "fecha_inicio", ascendente: false }
       });
 
@@ -81,8 +81,8 @@ export function CicloAcademico() {
   const loadSalones = async (cicloId: string) => {
     try {
       // Nota: Esta operación con JOIN requiere cliente directo
-      // TODO: Extender supabaseFailover para soportar JOINs
-      const cliente = supabaseFailover.getDirectClient();
+      // TODO: Extender supabaseDB para soportar JOINs
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("salones")
         .select("*, profesores(nombres, apellidos)")
@@ -100,7 +100,7 @@ export function CicloAcademico() {
   const loadSalonesDisponibles = async () => {
     try {
       // Nota: Esta operación con JOIN requiere cliente directo
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("salones")
         .select("*, profesores(nombres, apellidos)")
@@ -129,7 +129,7 @@ export function CicloAcademico() {
       };
 
       if (editingCiclo) {
-        const { data, error } = await supabaseFailover.update(
+        const { data, error } = await supabaseDB.update(
           "ciclos_academicos",
           editingCiclo.id,
           dataToSave
@@ -148,7 +148,7 @@ export function CicloAcademico() {
 
         toast.success("Ciclo académico actualizado exitosamente");
       } else {
-        const { data, error } = await supabaseFailover.insert(
+        const { data, error } = await supabaseDB.insert(
           "ciclos_academicos",
           dataToSave
         );
@@ -195,7 +195,7 @@ export function CicloAcademico() {
 
     try {
       setLoading(true);
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       let deletedCounts = {
         salones: 0,
         planes: 0,
@@ -221,7 +221,7 @@ export function CicloAcademico() {
 
           if (pagos && pagos.length > 0) {
             for (const pago of pagos) {
-              await supabaseFailover.delete("pagos", pago.id);
+              await supabaseDB.delete("pagos", pago.id);
             }
             deletedCounts.pagos += pagos.length;
           }
@@ -234,13 +234,13 @@ export function CicloAcademico() {
 
           if (cuotas && cuotas.length > 0) {
             for (const cuota of cuotas) {
-              await supabaseFailover.delete("cuotas_pago", cuota.id);
+              await supabaseDB.delete("cuotas_pago", cuota.id);
             }
             deletedCounts.cuotas += cuotas.length;
           }
 
           // Eliminar el plan
-          await supabaseFailover.delete("planes_pago", plan.id);
+          await supabaseDB.delete("planes_pago", plan.id);
         }
         deletedCounts.planes = planes.length;
       }
@@ -256,7 +256,7 @@ export function CicloAcademico() {
 
         // Desvincular salones (setear ciclo_academico_id a null)
         for (const salon of salonesAsociados) {
-          await supabaseFailover.update("salones", salon.id, {
+          await supabaseDB.update("salones", salon.id, {
             ciclo_academico_id: null
           });
         }
@@ -265,7 +265,7 @@ export function CicloAcademico() {
       }
 
       // 3. Ahora sí eliminar el ciclo académico
-      const { error } = await supabaseFailover.delete(
+      const { error } = await supabaseDB.delete(
         "ciclos_academicos",
         ciclo.id
       );
@@ -302,7 +302,7 @@ export function CicloAcademico() {
     if (!selectedCiclo) return;
 
     try {
-      const { error } = await supabaseFailover.update(
+      const { error } = await supabaseDB.update(
         "salones",
         salonId,
         { ciclo_academico_id: selectedCiclo.id }
@@ -322,7 +322,7 @@ export function CicloAcademico() {
     if (!selectedCiclo) return;
 
     try {
-      const { error } = await supabaseFailover.update(
+      const { error } = await supabaseDB.update(
         "salones",
         salonId,
         { ciclo_academico_id: null }

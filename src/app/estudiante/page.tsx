@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { generarBoletaNotas } from "@/servicios/pdf/generarBoletaPDF";
+import { ThemeToggle } from "@/componentes/ThemeToggle";
 
 const COLORS = {
     aprobado: "hsl(var(--chart-2))",
@@ -449,14 +450,17 @@ const StudentDashboard = () => {
                         </p>
                     </div>
                 </div>
-                <Button
-                    variant="outline"
-                    onClick={signOut}
-                    className="border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:hover:border-indigo-900 dark:hover:bg-indigo-900/20 transition-colors"
-                >
-                    <LogOut className="h-4 w-4 mr-2" />
-                    Cerrar Sesión
-                </Button>
+                <div className="flex items-center gap-2">
+                    <ThemeToggle />
+                    <Button
+                        variant="outline"
+                        onClick={signOut}
+                        className="border-slate-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:hover:border-indigo-900 dark:hover:bg-indigo-900/20 transition-colors"
+                    >
+                        <LogOut className="h-4 w-4 mr-2" />
+                        Cerrar Sesión
+                    </Button>
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">

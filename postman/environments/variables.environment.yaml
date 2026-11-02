@@ -1,0 +1,4 @@
+name: variables
+values:
+  - key: token_code
+    value: ''

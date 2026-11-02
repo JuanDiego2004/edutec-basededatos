@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
 import { Calendar } from "@/componentes/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/componentes/ui/popover";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { toast } from "sonner";
 import { Plus, Eye, Edit, Trash2, CalendarIcon, CreditCard } from "lucide-react";
 import { format } from "date-fns";
@@ -58,7 +58,7 @@ const PlanesPago = () => {
   const { data: planes, isLoading } = useQuery({
     queryKey: ["planes-pago"],
     queryFn: async () => {
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("planes_pago")
         .select(`
@@ -74,7 +74,7 @@ const PlanesPago = () => {
   const { data: ciclos } = useQuery({
     queryKey: ["ciclos-activos"],
     queryFn: async () => {
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data } = await cliente
         .from("ciclos_academicos")
         .select("*")
@@ -86,7 +86,7 @@ const PlanesPago = () => {
   const { data: estudiantes } = useQuery({
     queryKey: ["estudiantes-activos"],
     queryFn: async () => {
-      const { data } = await supabaseFailover.select("estudiantes", {
+      const { data } = await supabaseDB.select("estudiantes", {
         filtros: { estado: "activo" }
       });
       return data || [];
@@ -104,13 +104,13 @@ const PlanesPago = () => {
         estudiante_id: newPlan.estudiante_id || null
       };
 
-      const { data: planData, error: planError } = await supabaseFailover.insertSingle("planes_pago", payload);
+      const { data: planData, error: planError } = await supabaseDB.insertSingle("planes_pago", payload);
 
       if (planError) throw planError;
 
       
       if (newPlan.estudiante_id) {
-        const cliente = supabaseFailover.getDirectClient();
+        const cliente = supabaseDB.getDirectClient();
 
         const { data: matriculas, error: matError } = await cliente
           .from("matriculas")
@@ -125,7 +125,7 @@ const PlanesPago = () => {
 
         if (matriculas && matriculas.length > 0) {
           const matriculaId = matriculas[0].id;
-          const { error: updateError } = await supabaseFailover.update("matriculas", matriculaId, {
+          const { error: updateError } = await supabaseDB.update("matriculas", matriculaId, {
             plan_pago_id: planData.id
           });
 
@@ -134,7 +134,7 @@ const PlanesPago = () => {
             toast.error("El plan se creó pero hubo un error al vincularlo a la matrícula.");
           } else {
             if (!payload.estudiante_id) {
-              await supabaseFailover.update("planes_pago", planData.id, {
+              await supabaseDB.update("planes_pago", planData.id, {
                 estudiante_id: newPlan.estudiante_id
               });
             }
@@ -164,7 +164,7 @@ const PlanesPago = () => {
         throw new Error("Cancelado");
       }
 
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       let deletedCounts = {
         cuotas: 0,
         pagos: 0,
@@ -180,7 +180,7 @@ const PlanesPago = () => {
       if (matriculas && matriculas.length > 0) {
         console.log(`Desvinculando ${matriculas.length} matrículas del plan...`);
         for (const matricula of matriculas) {
-          await supabaseFailover.update("matriculas", matricula.id, {
+          await supabaseDB.update("matriculas", matricula.id, {
             plan_pago_id: null
           });
         }
@@ -196,7 +196,7 @@ const PlanesPago = () => {
       if (cuotas && cuotas.length > 0) {
         console.log(`Eliminando ${cuotas.length} cuotas del plan...`);
         for (const cuota of cuotas) {
-          await supabaseFailover.delete("cuotas_pago", cuota.id);
+          await supabaseDB.delete("cuotas_pago", cuota.id);
         }
         deletedCounts.cuotas = cuotas.length;
       }
@@ -210,13 +210,13 @@ const PlanesPago = () => {
       if (pagos && pagos.length > 0) {
         console.log(`Eliminando ${pagos.length} pagos del plan...`);
         for (const pago of pagos) {
-          await supabaseFailover.delete("pagos", pago.id);
+          await supabaseDB.delete("pagos", pago.id);
         }
         deletedCounts.pagos = pagos.length;
       }
 
       
-      const { error } = await supabaseFailover.delete("planes_pago", id);
+      const { error } = await supabaseDB.delete("planes_pago", id);
       if (error) throw error;
 
       return deletedCounts;
@@ -279,7 +279,7 @@ const PlanesPago = () => {
       console.log("Guardando cuotas para plan:", selectedPlan.id);
       console.log("Cuotas a guardar:", cuotasParaGuardar);
 
-      const { error } = await supabaseFailover.insert("cuotas_pago", cuotasParaGuardar);
+      const { error } = await supabaseDB.insert("cuotas_pago", cuotasParaGuardar);
 
       if (error) throw error;
 
@@ -303,7 +303,7 @@ const PlanesPago = () => {
   };
 
   const verDetallePlan = async (plan: any) => {
-    const cliente = supabaseFailover.getDirectClient();
+    const cliente = supabaseDB.getDirectClient();
     const { data } = await cliente
       .from("cuotas_pago")
       .select("*")

@@ -10,7 +10,7 @@ import { Label } from "@/componentes/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { toast } from "sonner";
 import { BookOpen, Eye, Edit, Trash2 } from "lucide-react";
 
@@ -35,7 +35,7 @@ export function Matriculas() {
     queryKey: ["matriculas"],
     queryFn: async () => {
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("matriculas")
         .select(`
@@ -54,7 +54,7 @@ export function Matriculas() {
   const { data: estudiantes } = useQuery({
     queryKey: ["estudiantes-list"],
     queryFn: async () => {
-      const { data } = await supabaseFailover.select("estudiantes", {
+      const { data } = await supabaseDB.select("estudiantes", {
         filtros: { estado: "activo" }
       });
       return data || [];
@@ -65,7 +65,7 @@ export function Matriculas() {
     queryKey: ["grados-secciones"],
     queryFn: async () => {
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("grados_secciones")
         .select("*, sedes(nombre)")
@@ -81,7 +81,7 @@ export function Matriculas() {
   const { data: sedes } = useQuery({
     queryKey: ["sedes-list"],
     queryFn: async () => {
-      const { data } = await supabaseFailover.select("sedes", {
+      const { data } = await supabaseDB.select("sedes", {
         filtros: { activo: true }
       });
       return data || [];
@@ -91,7 +91,7 @@ export function Matriculas() {
   const { data: ciclos } = useQuery({
     queryKey: ["ciclos-list"],
     queryFn: async () => {
-      const { data } = await supabaseFailover.select("ciclos_academicos", {
+      const { data } = await supabaseDB.select("ciclos_academicos", {
         filtros: { activo: true }
       });
       return data || [];
@@ -102,7 +102,7 @@ export function Matriculas() {
     queryKey: ["planes-disponibles"],
     queryFn: async () => {
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data } = await cliente
         .from("planes_pago")
         .select("*, estudiantes(nombres, apellidos)")
@@ -114,7 +114,7 @@ export function Matriculas() {
   const createMutation = useMutation({
     mutationFn: async (newMatricula: typeof formData) => {
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data: cursoData, error: cursoError } = await cliente
         .from("cursos")
         .select("id")
@@ -125,7 +125,7 @@ export function Matriculas() {
 
 
       if (!cursoId) {
-        const { data: nuevoCurso, error: errorNuevoCurso } = await supabaseFailover.insertSingle("cursos", {
+        const { data: nuevoCurso, error: errorNuevoCurso } = await supabaseDB.insertSingle("cursos", {
           nombre: "Curso General",
           codigo: "GEN-001",
           descripcion: "Curso general por defecto",
@@ -137,7 +137,7 @@ export function Matriculas() {
       }
 
 
-      const { data: matriculaData, error: matriculaError } = await supabaseFailover.insertSingle("matriculas", {
+      const { data: matriculaData, error: matriculaError } = await supabaseDB.insertSingle("matriculas", {
         estudiante_id: newMatricula.estudiante_id,
         curso_id: cursoId,
         grado_seccion_id: newMatricula.grado_seccion_id,
@@ -183,7 +183,7 @@ export function Matriculas() {
       console.log(` Iniciando eliminación de matrícula ${id}...`);
 
       // 1. Eliminar estado académico
-      const { error: estadoError } = await supabaseFailover.delete("estado_academico", id);
+      const { error: estadoError } = await supabaseDB.delete("estado_academico", id);
       if (estadoError) {
         console.error(`❌ Error eliminando estado académico:`, estadoError);
         throw estadoError;
@@ -192,7 +192,7 @@ export function Matriculas() {
 
       // 2. Eliminar evaluaciones relacionadas (buscar por matricula_id)
       console.log(`🔍 Buscando evaluaciones relacionadas...`);
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data: evaluaciones, error: evalQueryError } = await cliente
         .from("evaluaciones")
         .select("id")
@@ -206,7 +206,7 @@ export function Matriculas() {
       if (evaluaciones && evaluaciones.length > 0) {
         console.log(`✂️ Eliminando ${evaluaciones.length} evaluaciones...`);
         for (const evaluacion of evaluaciones) {
-          const { error: evalError } = await supabaseFailover.delete("evaluaciones", evaluacion.id);
+          const { error: evalError } = await supabaseDB.delete("evaluaciones", evaluacion.id);
           if (evalError) {
             console.error(`❌ Error eliminando evaluación ${evaluacion.id}:`, evalError);
             throw evalError;
@@ -219,7 +219,7 @@ export function Matriculas() {
 
       // 3. Eliminar la matrícula
       console.log(`✂️ Eliminando matrícula ${id}...`);
-      const { error } = await supabaseFailover.delete("matriculas", id);
+      const { error } = await supabaseDB.delete("matriculas", id);
       if (error) {
         console.error(`❌ Error eliminando matrícula:`, error);
         throw error;
@@ -241,7 +241,7 @@ export function Matriculas() {
   const updateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: string; data: typeof formData }) => {
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data: cursoData } = await cliente
         .from("cursos")
         .select("id")
@@ -251,7 +251,7 @@ export function Matriculas() {
       let cursoId = (cursoData as any)?.id;
 
       if (!cursoId) {
-        const { data: nuevoCurso, error: errorNuevoCurso } = await supabaseFailover.insertSingle("cursos", {
+        const { data: nuevoCurso, error: errorNuevoCurso } = await supabaseDB.insertSingle("cursos", {
           nombre: "Curso General",
           codigo: "GEN-001",
           descripcion: "Curso general por defecto",
@@ -263,7 +263,7 @@ export function Matriculas() {
       }
 
 
-      const { error } = await supabaseFailover.update("matriculas", id, {
+      const { error } = await supabaseDB.update("matriculas", id, {
         estudiante_id: data.estudiante_id,
         curso_id: cursoId,
         grado_seccion_id: data.grado_seccion_id,
@@ -321,7 +321,7 @@ export function Matriculas() {
 
   const verPlanPago = async (planId: string) => {
 
-    const cliente = supabaseFailover.getDirectClient();
+    const cliente = supabaseDB.getDirectClient();
     const { data } = await cliente
       .from("planes_pago")
       .select(`

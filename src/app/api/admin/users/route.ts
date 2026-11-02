@@ -1,40 +1,26 @@
-import { NextResponse } from "next/server";
-import { eliminarUsuarioDual } from "@/servicios/autenticacion/usuarioDual";
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 export async function DELETE(request: Request) {
     try {
-        const { searchParams } = new URL(request.url);
-        const userId = searchParams.get("id");
+        const userId = new URL(request.url).searchParams.get('id');
+        if (!userId) return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
 
-        if (!userId) {
-            return NextResponse.json(
-                { error: "User ID is required" },
-                { status: 400 }
-            );
-        }
-
-        
-        const resultado = await eliminarUsuarioDual(userId);
-
-        if (!resultado.success) {
-            return NextResponse.json(
-                {
-                    error: resultado.error || "Error al eliminar usuario",
-                    detalles: resultado.detalles
-                },
-                { status: 500 }
-            );
-        }
-
-        return NextResponse.json({
-            success: true,
-            message: "Usuario eliminado de ambas bases de datos"
-        });
-    } catch (error: any) {
-        console.error("Unexpected error:", error);
-        return NextResponse.json(
-            { error: error.message || "Internal Server Error" },
-            { status: 500 }
-        );
+        const { error: roleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId);
+        if (roleError) throw roleError;
+        const { error: profileError } = await supabaseAdmin.from('profiles').delete().eq('user_id', userId);
+        if (profileError) throw profileError;
+        const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+        if (error) throw error;
+        return NextResponse.json({ success: true, message: 'Usuario eliminado exitosamente' });
+    } catch (error) {
+        console.error('Error eliminando usuario:', error);
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Error al eliminar usuario' }, { status: 500 });
     }
 }

@@ -7,7 +7,7 @@ import { Button } from "@/componentes/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/componentes/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/componentes/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { toast } from "sonner";
 import { Eye, DollarSign, CreditCard, Users, ArrowLeft } from "lucide-react";
 
@@ -21,7 +21,7 @@ const Pagos = () => {
     queryKey: ["planes-con-estudiantes"],
     queryFn: async () => {
       
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("planes_pago")
         .select(`
@@ -39,7 +39,7 @@ const Pagos = () => {
     console.log(" Buscando estudiantes para plan:", plan.id, plan.nombre);
 
     
-    const cliente = supabaseFailover.getDirectClient();
+    const cliente = supabaseDB.getDirectClient();
 
     
     const { data, error } = await cliente
@@ -71,7 +71,7 @@ const Pagos = () => {
 
   const verPagosEstudiante = async (estudiante: any) => {
     
-    const cliente = supabaseFailover.getDirectClient();
+    const cliente = supabaseDB.getDirectClient();
     const { data, error } = await cliente
       .from("cuotas_pago")
       .select("*")
@@ -90,7 +90,7 @@ const Pagos = () => {
   const cambiarEstadoMutation = useMutation({
     mutationFn: async ({ cuotaId, nuevoEstado, cuota }: { cuotaId: string; nuevoEstado: string; cuota?: any }) => {
       
-      const { error } = await supabaseFailover.update("cuotas_pago", cuotaId, {
+      const { error } = await supabaseDB.update("cuotas_pago", cuotaId, {
         estado: nuevoEstado,
         fecha_pago: nuevoEstado === "pagado" ? new Date().toISOString() : null,
       });
@@ -100,7 +100,7 @@ const Pagos = () => {
       
       if (nuevoEstado === "pagado" && cuota && selectedEstudiante) {
         
-        const cliente = supabaseFailover.getDirectClient();
+        const cliente = supabaseDB.getDirectClient();
         const { data: estudiante } = await cliente
           .from("estudiantes")
           .select("sede_id")
@@ -125,12 +125,12 @@ const Pagos = () => {
         };
 
         console.log("💾 Registrando pago:", pagoData);
-        const { error: pagoError } = await supabaseFailover.insertSingle("pagos", pagoData);
+        const { error: pagoError } = await supabaseDB.insertSingle("pagos", pagoData);
         if (pagoError) {
           console.error("Error registrando pago:", pagoError);
           toast.error("Estado actualizado pero el pago no se registró completamente");
         } else {
-          console.log(" Pago registrado exitosamente en ambas bases");
+          console.log(" Pago registrado exitosamente en MongoDB");
         }
       }
 

@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/componentes/ui/popover";
 import { Calendar } from "@/componentes/ui/calendar";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { UserCheck, Plus, Eye, Edit, Trash2, CalendarIcon } from "lucide-react";
 import { useToast } from "@/ganchos/use-toast";
 import { useAuth } from "@/funcionalidades/autenticacion/ganchos/useAuth";
@@ -47,7 +47,7 @@ const Profesores = () => {
   const { data: profesores, isLoading } = useQuery({
     queryKey: ["profesores"],
     queryFn: async () => {
-      const { data, error } = await supabaseFailover.select("profesores");
+      const { data, error } = await supabaseDB.select("profesores");
       if (error) throw error;
       return data;
     },
@@ -59,7 +59,7 @@ const Profesores = () => {
   const { data: sedes, isLoading: isLoadingSedes, error: sedesError } = useQuery({
     queryKey: ["sedes"],
     queryFn: async () => {
-      const { data, error } = await supabaseFailover.select("sedes", {
+      const { data, error } = await supabaseDB.select("sedes", {
         filtros: { activo: true }
       });
       if (error) {
@@ -80,7 +80,7 @@ const Profesores = () => {
 
   const createProfesor = useMutation({
     mutationFn: async (newProfesor: any) => {
-      const { data, error } = await supabaseFailover.insert("profesores", newProfesor);
+      const { data, error } = await supabaseDB.insert("profesores", newProfesor);
       if (error) throw error;
       return data;
     },
@@ -110,7 +110,7 @@ const Profesores = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...datos }: any) => {
-      const { data, error } = await supabaseFailover.update("profesores", id, datos);
+      const { data, error } = await supabaseDB.update("profesores", id, datos);
       if (error) throw error;
       return { id, data: datos };
     },
@@ -141,7 +141,7 @@ const Profesores = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async ({ id, profesorData }: { id: string; profesorData: any }) => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       let deletedCounts = {
         salones: 0,
         salonCursos: 0
@@ -156,7 +156,7 @@ const Profesores = () => {
       if (salones && salones.length > 0) {
         console.log(`Desvinculando ${salones.length} salones del profesor...`);
         for (const salon of salones) {
-          await supabaseFailover.update("salones", salon.id, {
+          await supabaseDB.update("salones", salon.id, {
             profesor_id: null
           });
         }
@@ -172,7 +172,7 @@ const Profesores = () => {
       if (salonCursos && salonCursos.length > 0) {
         console.log(`Desvinculando ${salonCursos.length} asignaciones de cursos...`);
         for (const sc of salonCursos) {
-          await supabaseFailover.update("salon_cursos", sc.id, {
+          await supabaseDB.update("salon_cursos", sc.id, {
             profesor_id: null
           });
         }
@@ -180,7 +180,7 @@ const Profesores = () => {
       }
 
       // 3. Eliminar el profesor
-      const { error } = await supabaseFailover.delete("profesores", id);
+      const { error } = await supabaseDB.delete("profesores", id);
       if (error) throw error;
 
       return { id, profesorData, deletedCounts };

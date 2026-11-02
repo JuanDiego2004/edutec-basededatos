@@ -1,45 +1,27 @@
 import { NextResponse } from 'next/server';
-import { gestorDB } from '@/servicios/base-datos/gestorConexiones';
+import { obtenerClienteMongoPrimario } from '@/servicios/base-datos/conexionMongo';
 
-
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const dbType = searchParams.get('db') || 'primary';
-    const dbLabel = dbType === 'primary' ? 'MongoDB Primaria' : 'MongoDB Secundaria';
-
+export async function GET() {
+    const database = 'MongoDB';
+    const start = Date.now();
     try {
-        const start = Date.now();
-
-        
-        if (dbType === 'primary') {
-            const { obtenerClienteMongoPrimario } = await import('@/servicios/base-datos/conexionMongo');
-            const db = await obtenerClienteMongoPrimario();
-            await db.admin().ping();
-        } else {
-            const { obtenerClienteMongoSecundario } = await import('@/servicios/base-datos/conexionMongo');
-            const db = await obtenerClienteMongoSecundario();
-            await db.admin().ping();
-        }
-
-        const latency = Date.now() - start;
-
+        await (await obtenerClienteMongoPrimario()).admin().ping();
         return NextResponse.json({
             ok: true,
-            database: dbLabel,
+            database,
             status: 'online',
-            latency,
+            latency: Date.now() - start,
             timestamp: new Date().toISOString(),
         });
-    } catch (error: any) {
-        console.error(`[DB Health] ${dbLabel} error:`, error.message);
-
-        
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error de conexión';
+        console.error(`[DB Health] ${database} error:`, message);
         return NextResponse.json({
             ok: false,
-            database: dbLabel,
-            error: error.message || 'Error de conexión',
+            database,
+            error: message,
             status: 'offline',
             timestamp: new Date().toISOString(),
-        }, { status: 200 }); 
+        }, { status: 200 });
     }
 }

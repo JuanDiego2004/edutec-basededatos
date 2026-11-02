@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/componentes/ui/card";
 import { Badge } from "@/componentes/ui/badge";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
 import {
   Users,
   GraduationCap,
@@ -19,210 +18,49 @@ import {
   CheckCircle,
   Clock
 } from "lucide-react";
-import { SyncDashboard } from './SyncDashboard';
 import { obtenerClienteSupabasePrimario } from '@/servicios/base-datos/conexionPostgres';
 
 const Dashboard = () => {
+  const cliente = obtenerClienteSupabasePrimario();
   const { data: estudiantes, isLoading: loadingEstudiantes } = useQuery({
     queryKey: ["estudiantes-count"],
     queryFn: async () => {
-      try {
-        const cliente = supabaseFailover.getDirectClient();
-        const { count, error } = await cliente
-          .from("estudiantes")
-          .select("*", { count: "exact", head: true });
-
-        if (error) {
-          // Si hay error de red, forzar failover
-          if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-            supabaseFailover.forceFailover('Error de red en Dashboard - estudiantes count');
-            // Reintentar con secundaria
-            const clienteSecundario = supabaseFailover.getDirectClient();
-            const { count: countSecundario } = await clienteSecundario
-              .from("estudiantes")
-              .select("*", { count: "exact", head: true });
-            return countSecundario || 0;
-          }
-          console.error("Error consultando estudiantes:", error);
-        }
-
-        return count || 0;
-      } catch (err: any) {
-        console.error("Excepción en estudiantes count:", err);
-        // Intentar con failover
-        if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-          supabaseFailover.forceFailover('Error de red en Dashboard - estudiantes count (catch)');
-          const clienteSecundario = supabaseFailover.getDirectClient();
-          const { count } = await clienteSecundario
-            .from("estudiantes")
-            .select("*", { count: "exact", head: true });
-          return count || 0;
-        }
-        return 0;
-      }
-    },
-    retry: false,
-    staleTime: 30000,
+      const { count, error } = await cliente.from("estudiantes").select("*", { count: "exact", head: true });
+      if (error) throw error;
+      return count || 0;
+    }, retry: false, staleTime: 30000,
   });
-
   const { data: matriculas, isLoading: loadingMatriculas } = useQuery({
     queryKey: ["matriculas-count"],
     queryFn: async () => {
-      try {
-        const cliente = supabaseFailover.getDirectClient();
-        const { count, error } = await cliente
-          .from("matriculas")
-          .select("*", { count: "exact", head: true })
-          .eq("estado", "activa");
-
-        if (error) {
-          if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-            supabaseFailover.forceFailover('Error de red en Dashboard - matriculas count');
-            const clienteSecundario = supabaseFailover.getDirectClient();
-            const { count: countSecundario } = await clienteSecundario
-              .from("matriculas")
-              .select("*", { count: "exact", head: true })
-              .eq("estado", "activa");
-            return countSecundario || 0;
-          }
-        }
-
-        return count || 0;
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-          supabaseFailover.forceFailover('Error de red en Dashboard - matriculas count (catch)');
-          const clienteSecundario = supabaseFailover.getDirectClient();
-          const { count } = await clienteSecundario
-            .from("matriculas")
-            .select("*", { count: "exact", head: true })
-            .eq("estado", "activa");
-          return count || 0;
-        }
-        return 0;
-      }
-    },
-    retry: false,
-    staleTime: 30000,
+      const { count, error } = await cliente.from("matriculas").select("*", { count: "exact", head: true }).eq("estado", "activa");
+      if (error) throw error;
+      return count || 0;
+    }, retry: false, staleTime: 30000,
   });
-
   const { data: pagosTotal, isLoading: loadingPagos } = useQuery({
     queryKey: ["pagos-total"],
     queryFn: async () => {
-      try {
-        const cliente = supabaseFailover.getDirectClient();
-        const { data, error } = await cliente
-          .from("pagos")
-          .select("monto")
-          .eq("estado", "completado");
-
-        if (error) {
-          if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-            supabaseFailover.forceFailover('Error de red en Dashboard - pagos total');
-            const clienteSecundario = supabaseFailover.getDirectClient();
-            const { data: dataSecundario } = await clienteSecundario
-              .from("pagos")
-              .select("monto")
-              .eq("estado", "completado");
-            return (dataSecundario as any[])?.reduce((sum, p) => sum + Number(p.monto), 0) || 0;
-          }
-        }
-
-        return (data as any[])?.reduce((sum, p) => sum + Number(p.monto), 0) || 0;
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-          supabaseFailover.forceFailover('Error de red en Dashboard - pagos total (catch)');
-          const clienteSecundario = supabaseFailover.getDirectClient();
-          const { data } = await clienteSecundario
-            .from("pagos")
-            .select("monto")
-            .eq("estado", "completado");
-          return (data as any[])?.reduce((sum, p) => sum + Number(p.monto), 0) || 0;
-        }
-        return 0;
-      }
-    },
-    retry: false,
-    staleTime: 30000,
+      const { data, error } = await cliente.from("pagos").select("monto").eq("estado", "completado");
+      if (error) throw error;
+      return (data as any[])?.reduce((sum, pago) => sum + Number(pago.monto), 0) || 0;
+    }, retry: false, staleTime: 30000,
   });
-
   const { data: inventarioItems, isLoading: loadingInventario } = useQuery({
     queryKey: ["inventario-count"],
     queryFn: async () => {
-      try {
-        const cliente = supabaseFailover.getDirectClient();
-        const { count, error } = await cliente
-          .from("inventario")
-          .select("*", { count: "exact", head: true })
-          .eq("activo", true);
-
-        if (error) {
-          if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-            supabaseFailover.forceFailover('Error de red en Dashboard - inventario count');
-            const clienteSecundario = supabaseFailover.getDirectClient();
-            const { count: countSecundario } = await clienteSecundario
-              .from("inventario")
-              .select("*", { count: "exact", head: true })
-              .eq("activo", true);
-            return countSecundario || 0;
-          }
-        }
-
-        return count || 0;
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-          supabaseFailover.forceFailover('Error de red en Dashboard - inventario count (catch)');
-          const clienteSecundario = supabaseFailover.getDirectClient();
-          const { count } = await clienteSecundario
-            .from("inventario")
-            .select("*", { count: "exact", head: true })
-            .eq("activo", true);
-          return count || 0;
-        }
-        return 0;
-      }
-    },
-    retry: false,
-    staleTime: 30000,
+      const { count, error } = await cliente.from("inventario").select("*", { count: "exact", head: true }).eq("activo", true);
+      if (error) throw error;
+      return count || 0;
+    }, retry: false, staleTime: 30000,
   });
-
   const { data: sedes, isLoading: loadingSedes } = useQuery({
     queryKey: ["sedes"],
     queryFn: async () => {
-      try {
-        const cliente = supabaseFailover.getDirectClient();
-        const { data, error } = await cliente
-          .from("sedes")
-          .select("*")
-          .eq("activo", true);
-
-        if (error) {
-          if (error.message?.includes('Failed to fetch') || error.name === 'TypeError') {
-            supabaseFailover.forceFailover('Error de red en Dashboard - sedes');
-            const clienteSecundario = supabaseFailover.getDirectClient();
-            const { data: dataSecundario } = await clienteSecundario
-              .from("sedes")
-              .select("*")
-              .eq("activo", true);
-            return dataSecundario || [];
-          }
-        }
-
-        return data || [];
-      } catch (err: any) {
-        if (err?.message?.includes('Failed to fetch') || err?.name === 'TypeError') {
-          supabaseFailover.forceFailover('Error de red en Dashboard - sedes (catch)');
-          const clienteSecundario = supabaseFailover.getDirectClient();
-          const { data } = await clienteSecundario
-            .from("sedes")
-            .select("*")
-            .eq("activo", true);
-          return data || [];
-        }
-        return [];
-      }
-    },
-    retry: false,
-    staleTime: 30000,
+      const { data, error } = await cliente.from("sedes").select("*").eq("activo", true);
+      if (error) throw error;
+      return data || [];
+    }, retry: false, staleTime: 30000,
   });
 
   return (
@@ -450,7 +288,7 @@ const Dashboard = () => {
                 <Layers className="w-8 h-8 text-violet-600 dark:text-violet-400 mb-4" />
                 <h3 className="font-bold text-lg text-slate-900 dark:text-white mb-2">Replicación Automática</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Sincronización en tiempo real entre todas las sedes con failover automático
+                  Gestión académica y administrativa en tiempo real
                 </p>
               </div>
             </div>

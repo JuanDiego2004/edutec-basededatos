@@ -1,75 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { eliminarUsuarioDual } from '@/servicios/autenticacion/usuarioDual';
 
-
-const supabasePrimarioAdmin = createClient(
+const supabaseAdmin = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
-const supabaseSecundarioAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_SECONDARY_URL!,
-    process.env.SUPABASE_SECONDARY_SERVICE_ROLE_KEY!,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-);
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
     try {
-        const { estudiante_id } = await req.json();
+        const { estudiante_id } = await request.json();
+        if (!estudiante_id) return NextResponse.json({ error: 'estudiante_id requerido' }, { status: 400 });
 
-        if (!estudiante_id) {
-            return NextResponse.json({ error: 'estudiante_id requerido' }, { status: 400 });
-        }
+        const { data: profile, error: lookupError } = await supabaseAdmin
+            .from('profiles')
+            .select('user_id')
+            .eq('estudiante_id', estudiante_id)
+            .maybeSingle();
+        if (lookupError) throw lookupError;
 
-        console.log(` Eliminando perfil/usuario para estudiante: ${estudiante_id}`);
+        const { error: profileError } = await supabaseAdmin.from('profiles').delete().eq('estudiante_id', estudiante_id);
+        if (profileError) throw profileError;
 
-
-        const [primProfile, secProfile] = await Promise.all([
-            supabasePrimarioAdmin.from('profiles').select('user_id').eq('estudiante_id', estudiante_id).maybeSingle(),
-            supabaseSecundarioAdmin.from('profiles').select('user_id').eq('estudiante_id', estudiante_id).maybeSingle()
-        ]);
-
-        const userId = primProfile.data?.user_id || secProfile.data?.user_id;
-
-
-
-
-
-        const deleteResults = await Promise.allSettled([
-            supabasePrimarioAdmin.from('profiles').delete().eq('estudiante_id', estudiante_id),
-            supabaseSecundarioAdmin.from('profiles').delete().eq('estudiante_id', estudiante_id)
-        ]);
-
-
-        if (deleteResults[0].status === 'fulfilled') {
-            console.log(' Primaria delete result:', deleteResults[0].value);
-        } else {
-            console.error('Primaria delete error:', deleteResults[0].reason);
-        }
-
-        if (deleteResults[1].status === 'fulfilled') {
-            console.log(' Secundaria delete result:', deleteResults[1].value);
-            if (deleteResults[1].value.error) {
-                console.error('Error explícito en secundaria:', deleteResults[1].value.error);
-            }
-        } else {
-            console.error('Secundaria delete error:', deleteResults[1].reason);
-        }
-
-        console.log(' Perfiles eliminados (o intentados) en ambas bases');
-
-
-        if (userId) {
-            console.log(`👤 Eliminando usuario auth asociado: ${userId}`);
-            await eliminarUsuarioDual(userId);
+        if (profile?.user_id) {
+            const { error: roleError } = await supabaseAdmin.from('user_roles').delete().eq('user_id', profile.user_id);
+            if (roleError) throw roleError;
+            const { error: userError } = await supabaseAdmin.auth.admin.deleteUser(profile.user_id);
+            if (userError) throw userError;
         }
 
         return NextResponse.json({ success: true });
-
     } catch (error) {
         console.error('Error eliminando perfil:', error);
-        return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+        return NextResponse.json({ error: error instanceof Error ? error.message : 'Error al eliminar perfil' }, { status: 500 });
     }
 }

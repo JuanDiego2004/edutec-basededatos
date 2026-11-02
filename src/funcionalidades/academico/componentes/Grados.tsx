@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { Button } from "@/componentes/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/componentes/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
@@ -52,7 +52,7 @@ export function Grados() {
     try {
       setLoading(true);
 
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const [{ data: sedesData }, { data: gradosData }] = await Promise.all([
         supabase.from("sedes").select("*"),
         supabase.from("grados_secciones").select("*, sedes(nombre)").order("grado, seccion"),
@@ -72,7 +72,7 @@ export function Grados() {
   };
 
   const loadGradoDetails = async (gradosData: GradoSeccion[]) => {
-    const supabase = supabaseFailover.getDirectClient();
+    const supabase = supabaseDB.getDirectClient();
     const details: Record<string, GradoDetails> = {};
 
     for (const grado of gradosData) {
@@ -108,12 +108,12 @@ export function Grados() {
 
     try {
       if (editingGrado) {
-        const { error } = await supabaseFailover.update("grados_secciones", editingGrado.id, formData);
+        const { error } = await supabaseDB.update("grados_secciones", editingGrado.id, formData);
 
         if (error) throw error;
         toast.success("Grado actualizado exitosamente");
       } else {
-        const { error } = await supabaseFailover.insert("grados_secciones", formData);
+        const { error } = await supabaseDB.insert("grados_secciones", formData);
 
         if (error) throw error;
         toast.success("Grado creado exitosamente");
@@ -147,7 +147,7 @@ export function Grados() {
   const handleDelete = async (id: string) => {
     try {
       setLoading(true);
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
 
       // 1. Verificar si hay salones asociados
       const { data: salones } = await supabase
@@ -176,7 +176,7 @@ export function Grados() {
       // 3. Si no hay registros relacionados, proceder a eliminar
       if (!confirm("¿Estás seguro de eliminar este grado/sección?")) return;
 
-      const { error } = await supabaseFailover.delete("grados_secciones", id);
+      const { error } = await supabaseDB.delete("grados_secciones", id);
 
       if (error) throw error;
 

@@ -156,7 +156,7 @@ const GestionUsuarios = () => {
 
     try {
 
-      const response = await fetch('/api/auth/crear-usuario-dual', {
+      const response = await fetch('/api/auth/crear-usuario', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -181,7 +181,7 @@ const GestionUsuarios = () => {
       if (data.success) {
         toast({
           title: "Usuario creado",
-          description: `Usuario ${email} creado exitosamente en ambas bases de datos`,
+          description: `Usuario ${email} creado exitosamente`,
         });
         setEmail("");
         setPassword("");

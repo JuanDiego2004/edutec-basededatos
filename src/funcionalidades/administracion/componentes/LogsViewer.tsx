@@ -31,8 +31,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/componentes/ui/tabs';
 import { useAuth } from '@/funcionalidades/autenticacion/ganchos/useAuth';
 import { toast } from 'sonner';
-import { supabaseFailover } from '@/servicios/base-datos/supabaseConRespaldo';
-import { SyncDashboard } from './SyncDashboard';
 
 const activityIcons: Record<string, any> = {
   login: LogIn,
@@ -99,7 +97,6 @@ interface Log {
 interface DatabaseStatus {
   name: string;
   type: 'supabase' | 'mongodb';
-  role: 'primary' | 'secondary';
   status: 'online' | 'offline' | 'checking';
   latency?: number;
   lastChecked?: Date;
@@ -111,10 +108,8 @@ export default function LogsViewer() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("todos");
   const [dbStatuses, setDbStatuses] = useState<DatabaseStatus[]>([
-    { name: 'Supabase Primaria', type: 'supabase', role: 'primary', status: 'checking' },
-    { name: 'Supabase Secundaria', type: 'supabase', role: 'secondary', status: 'checking' },
-    { name: 'MongoDB Primaria', type: 'mongodb', role: 'primary', status: 'checking' },
-    { name: 'MongoDB Secundaria', type: 'mongodb', role: 'secondary', status: 'checking' },
+    { name: 'Supabase', type: 'supabase', status: 'checking' },
+    { name: 'MongoDB', type: 'mongodb', status: 'checking' },
   ]);
   const [stats, setStats] = useState({
     total: 0,
@@ -166,13 +161,7 @@ export default function LogsViewer() {
         });
 
         
-        if (data.fuente) {
-          const fuenteLabel = data.fuente === 'primaria' ? 'PRIMARIA' : 'SECUNDARIA';
-          console.log(`📊 Logs cargados desde MongoDB ${fuenteLabel}`);
-          if (data.fuente === 'secundaria') {
-            toast.info('Logs cargados desde base de datos SECUNDARIA');
-          }
-        }
+        console.log('📊 Logs cargados desde MongoDB');
       }
     } catch (error: any) {
       console.error(' Error cargando logs:', error);
@@ -186,17 +175,10 @@ export default function LogsViewer() {
 
   
   const checkDatabasesHealth = async () => {
-    const checkStart = Date.now();
-
-    
-    const checkSupabase = async (isPrimary: boolean): Promise<{ status: 'online' | 'offline', latency?: number }> => {
+    const checkSupabase = async (): Promise<{ status: 'online' | 'offline', latency?: number }> => {
       const start = Date.now();
       try {
-        const client = isPrimary
-          ? (await import('@/servicios/base-datos/conexionPostgres')).obtenerClienteSupabasePrimario()
-          : (await import('@/servicios/base-datos/conexionPostgres')).obtenerClienteSupabaseSecundario();
-
-        
+        const client = (await import('@/servicios/base-datos/conexionPostgres')).obtenerClienteSupabasePrimario();
         const { error } = await client.from('sedes').select('id').limit(1);
         const latency = Date.now() - start;
 
@@ -211,11 +193,10 @@ export default function LogsViewer() {
     };
 
     
-    const checkMongoDB = async (isPrimary: boolean): Promise<{ status: 'online' | 'offline', latency?: number }> => {
+    const checkMongoDB = async (): Promise<{ status: 'online' | 'offline', latency?: number }> => {
       const start = Date.now();
       try {
-        
-        const response = await fetch(`/api/db-health?db=${isPrimary ? 'primary' : 'secondary'}`);
+        const response = await fetch('/api/db-health');
         const latency = Date.now() - start;
 
         if (!response.ok) {
@@ -230,46 +211,26 @@ export default function LogsViewer() {
     };
 
     
-    const [supabasePrimary, supabaseSecondary, mongoPrimary, mongoSecondary] = await Promise.all([
-      checkSupabase(true),
-      checkSupabase(false),
-      checkMongoDB(true),
-      checkMongoDB(false),
+    const [supabase, mongodb] = await Promise.all([
+      checkSupabase(),
+      checkMongoDB(),
     ]);
 
     
     setDbStatuses([
       {
-        name: 'Supabase Primaria',
+        name: 'Supabase',
         type: 'supabase',
-        role: 'primary',
-        status: supabasePrimary.status,
-        latency: supabasePrimary.latency,
+        status: supabase.status,
+        latency: supabase.latency,
         lastChecked: new Date(),
       },
       {
-        name: 'Supabase Secundaria',
-        type: 'supabase',
-        role: 'secondary',
-        status: supabaseSecondary.status,
-        latency: supabaseSecondary.latency,
-        lastChecked: new Date(),
-      },
-      {
-        name: 'MongoDB Primaria',
+        name: 'MongoDB',
         type: 'mongodb',
-        role: 'primary',
-        status: mongoPrimary.status,
-        latency: mongoPrimary.latency,
+        status: mongodb.status,
         lastChecked: new Date(),
-      },
-      {
-        name: 'MongoDB Secundaria',
-        type: 'mongodb',
-        role: 'secondary',
-        status: mongoSecondary.status,
-        latency: mongoSecondary.latency,
-        lastChecked: new Date(),
+        latency: mongodb.latency,
       },
     ]);
   };
@@ -449,19 +410,11 @@ export default function LogsViewer() {
                   ? 'bg-red-500/10 border-red-500/20'
                   : 'bg-yellow-500/10 border-yellow-500/20';
 
-              const isPrimary = db.role === 'primary';
-
               return (
                 <div
                   key={index}
                   className={`relative p-5 rounded-xl border backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] ${bgColor}`}
                 >
-
-                  {isPrimary && (
-                    <div className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-indigo-500 text-white text-[10px] font-bold shadow-lg">
-                      PRINCIPAL
-                    </div>
-                  )}
 
                   <div className="flex flex-col gap-3">
 
@@ -474,9 +427,7 @@ export default function LogsViewer() {
                           <p className="text-xs font-semibold text-slate-900 dark:text-white leading-tight">
                             {db.type === 'supabase' ? 'Supabase' : 'MongoDB'}
                           </p>
-                          <p className="text-[10px] text-muted-foreground capitalize">
-                            {db.role === 'primary' ? 'Primaria' : 'Secundaria'}
-                          </p>
+                          <p className="text-[10px] text-muted-foreground">Base de datos principal</p>
                         </div>
                       </div>
                       <StatusIcon className={`h-5 w-5 ${statusColor}`} />
@@ -524,29 +475,8 @@ export default function LogsViewer() {
             })}
           </div>
 
-          <div className="mt-4 p-3 rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Activity className="h-4 w-4 text-indigo-500" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Sistema de Failover:
-                </span>
-                <Badge variant={supabaseFailover.getStatus().usandoSecundaria ? "destructive" : "outline"} className="ml-2">
-                  {supabaseFailover.getStatus().usandoSecundaria ? "USANDO SECUNDARIA" : "Modo Normal"}
-                </Badge>
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {supabaseFailover.getStatus().usandoSecundaria
-                  ? " Operando en modo de contingencia"
-                  : " Operando con base de datos principal"}
-              </span>
-            </div>
-          </div>
         </CardContent>
       </Card>
-
-
-      <SyncDashboard />
 
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -8,7 +8,7 @@ import { Input } from "@/componentes/ui/input";
 import { Label } from "@/componentes/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { useActivityLogger } from "@/ganchos/useActivityLogger";
 import { BookOpen, Plus, Users, Award, Pencil, Trash2, Save } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -45,7 +45,7 @@ const Cursos = () => {
   const { data: cursos, isLoading } = useQuery({
     queryKey: ["cursos"],
     queryFn: async () => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("cursos")
         .select(`
@@ -83,7 +83,7 @@ const Cursos = () => {
   const { data: estudiantesPorCurso } = useQuery({
     queryKey: ["estudiantes-por-curso"],
     queryFn: async () => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
 
 
       const { data: salonCursos, error: scError } = await supabase
@@ -135,7 +135,7 @@ const Cursos = () => {
   const { data: estadisticas } = useQuery({
     queryKey: ["estadisticas-cursos"],
     queryFn: async () => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const stats: Record<string, { total_estudiantes: number }> = {};
       if (!cursos) return stats;
 
@@ -155,7 +155,7 @@ const Cursos = () => {
   const { data: competenciasPorCurso } = useQuery({
     queryKey: ["competencias-por-curso"],
     queryFn: async () => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("salon_cursos")
         .select(`
@@ -193,7 +193,7 @@ const Cursos = () => {
 
   const createCurso = useMutation({
     mutationFn: async (newCurso: typeof formData) => {
-      const { data, error } = await supabaseFailover.insert("cursos", newCurso);
+      const { data, error } = await supabaseDB.insert("cursos", newCurso);
       if (error) throw error;
       return data;
     },
@@ -215,7 +215,7 @@ const Cursos = () => {
 
   const deleteCurso = useMutation({
     mutationFn: async (id: string) => {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       let deletedCounts = {
         competencias: 0,
         salonCursos: 0,
@@ -238,7 +238,7 @@ const Cursos = () => {
         console.log(` Eliminando ${matriculas.length} matrículas del curso y sus dependencias...`);
         for (const matricula of matriculas) {
           // 1. Eliminar estado académico
-          await supabaseFailover.delete("estado_academico", matricula.id);
+          await supabaseDB.delete("estado_academico", matricula.id);
 
           // 2. Eliminar evaluaciones relacionadas
           const { data: evaluaciones } = await supabase
@@ -248,12 +248,12 @@ const Cursos = () => {
 
           if (evaluaciones && evaluaciones.length > 0) {
             for (const evaluacion of evaluaciones) {
-              await supabaseFailover.delete("evaluaciones", evaluacion.id);
+              await supabaseDB.delete("evaluaciones", evaluacion.id);
             }
           }
 
           // 3. Eliminar la matrícula
-          await supabaseFailover.delete("matriculas", matricula.id);
+          await supabaseDB.delete("matriculas", matricula.id);
         }
         deletedCounts.matriculas = matriculas.length;
         console.log(`${matriculas.length} matrículas eliminadas`);
@@ -271,19 +271,19 @@ const Cursos = () => {
 
           if (competencias && competencias.length > 0) {
             for (const comp of competencias) {
-              await supabaseFailover.delete("competencias", comp.id);
+              await supabaseDB.delete("competencias", comp.id);
             }
             deletedCounts.competencias += competencias.length;
           }
 
 
-          await supabaseFailover.delete("salon_cursos", sc.id);
+          await supabaseDB.delete("salon_cursos", sc.id);
         }
         deletedCounts.salonCursos = salonCursos.length;
       }
 
 
-      const { error } = await supabaseFailover.delete("cursos", id);
+      const { error } = await supabaseDB.delete("cursos", id);
       if (error) throw error;
 
       return { id, deletedCounts };
@@ -322,7 +322,7 @@ const Cursos = () => {
 
   const loadSalonCursosForCurso = async (cursoId: string) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("salon_cursos")
         .select("*, salones(codigo, nombre, grado,  seccion)")
@@ -339,7 +339,7 @@ const Cursos = () => {
 
   const loadCompetencias = async (salonCursoId: string) => {
     try {
-      const supabase = supabaseFailover.getDirectClient();
+      const supabase = supabaseDB.getDirectClient();
       const { data, error } = await supabase
         .from("competencias")
         .select("*")
@@ -381,7 +381,7 @@ const Cursos = () => {
       }
 
       if (editingCompetencia) {
-        const { error } = await supabaseFailover.update("competencias", editingCompetencia.id, {
+        const { error } = await supabaseDB.update("competencias", editingCompetencia.id, {
           nombre: competenciaForm.nombre,
           descripcion: competenciaForm.descripcion,
           porcentaje: porcentaje,
@@ -391,7 +391,7 @@ const Cursos = () => {
         sonnerToast.success("Competencia actualizada");
         setEditingCompetencia(null);
       } else {
-        const { error } = await supabaseFailover.insert("competencias", {
+        const { error } = await supabaseDB.insert("competencias", {
           salon_curso_id: selectedSalonCurso.id,
           nombre: competenciaForm.nombre,
           descripcion: competenciaForm.descripcion,
@@ -434,7 +434,7 @@ const Cursos = () => {
     if (!confirm("¿Eliminar esta competencia?")) return;
 
     try {
-      const { error } = await supabaseFailover.delete("competencias", competenciaId);
+      const { error } = await supabaseDB.delete("competencias", competenciaId);
 
       if (error) throw error;
       sonnerToast.success("Competencia eliminada");

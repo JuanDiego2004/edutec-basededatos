@@ -25,35 +25,44 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
 
-    if (isLogin) {
-      const { error } = await signIn(email, password);
+    try {
+      if (isLogin) {
+        const { error } = await signIn(email, password);
 
-      if (error) {
-        toast({
-          title: "Error de acceso",
-          description: error.message,
-          variant: "destructive",
-        });
-      }
-
-    } else {
-      const { error } = await signUp(email, password, selectedRole);
-      if (error) {
-        toast({
-          title: "Error de registro",
-          description: error.message,
-          variant: "destructive",
-        });
+        if (error) {
+          toast({
+            title: "Error de acceso",
+            description: error.message.includes("Invalid login credentials")
+              ? "Correo o contraseña incorrectos."
+              : error.message,
+            variant: "destructive",
+          });
+        }
       } else {
-        toast({
-          title: "¡Registro exitoso!",
-          description: "Por favor verifica tu correo electrónico para continuar.",
-          className: "bg-emerald-500 text-white border-none",
-        });
+        const { error } = await signUp(email.trim(), password, selectedRole);
+        if (error) {
+          toast({
+            title: "Error de registro",
+            description: error.message,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "¡Registro exitoso!",
+            description: "Por favor verifica tu correo electrónico para continuar.",
+            className: "bg-emerald-500 text-white border-none",
+          });
+        }
       }
+    } catch (error) {
+      toast({
+        title: isLogin ? "Error de acceso" : "Error de registro",
+        description: error instanceof Error ? error.message : "No se pudo completar la solicitud.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -123,7 +132,7 @@ const Auth = () => {
               </div>
             )}
 
-            {/* EMAIL INPUT */}
+
             <div className="space-y-2">
               <Label className="text-slate-700 font-semibold">Correo electrónico</Label>
               <div className="relative group">
@@ -131,7 +140,9 @@ const Auth = () => {
                   <Mail className="h-5 w-5" />
                 </div>
                 <Input
-                  type="email"
+                  type="text"
+                  inputMode="email"
+                  autoComplete="email"
                   placeholder="nombre@ejemplo.com"
                   className="pl-10 h-12 bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl transition-all hover:bg-slate-50 shadow-sm"
                   value={email}

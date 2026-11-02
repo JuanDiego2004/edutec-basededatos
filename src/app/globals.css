@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   /* Light mode colors */
@@ -68,8 +69,7 @@
   --radius-lg: var(--radius);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
+.dark {
     --background: #09090b;
     --foreground: #fafafa;
 
@@ -97,7 +97,6 @@
     --border: #27272a;
     --input: #27272a;
     --ring: #d4d4d8;
-  }
 }
 
 body {

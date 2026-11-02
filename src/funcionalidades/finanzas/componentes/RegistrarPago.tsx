@@ -6,7 +6,7 @@ import { Button } from "@/componentes/ui/button";
 import { Label } from "@/componentes/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/componentes/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/componentes/ui/dialog";
-import { supabaseFailover } from "@/servicios/base-datos/supabaseConRespaldo";
+import { supabaseDB } from "@/servicios/base-datos/supabaseOperaciones";
 import { toast } from "sonner";
 import { DollarSign } from "lucide-react";
 import { generarVoucherPago } from "@/servicios/pdf/generarVoucherPago";
@@ -28,7 +28,7 @@ const RegistrarPago = () => {
       if (!formData.estudiante_id) return [];
 
       console.log(" Buscando cuotas para estudiante:", formData.estudiante_id);
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
 
 
 
@@ -121,7 +121,7 @@ const RegistrarPago = () => {
   const { data: estudiantes } = useQuery({
     queryKey: ["estudiantes-pagos"],
     queryFn: async () => {
-      const { data } = await supabaseFailover.select("estudiantes", {
+      const { data } = await supabaseDB.select("estudiantes", {
         filtros: { estado: "activo" }
       });
       return data || [];
@@ -132,7 +132,7 @@ const RegistrarPago = () => {
     mutationFn: async (newPago: typeof formData) => {
       console.log("💳 Procesando pago:", newPago);
 
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
 
 
       const { data: cuotaInfo, error: cuotaError } = await cliente
@@ -173,18 +173,18 @@ const RegistrarPago = () => {
         fecha_pago: new Date().toISOString(),
       };
 
-      console.log("💾 Registrando pago en AMBAS bases:", pagoPayload);
-      const { data: pagoData, error: pagoError } = await supabaseFailover.insertSingle("pagos", pagoPayload);
+      console.log("💾 Registrando pago:", pagoPayload);
+      const { data: pagoData, error: pagoError } = await supabaseDB.insertSingle("pagos", pagoPayload);
 
       if (pagoError) {
         console.error("Error creando registro de pago:", pagoError);
         throw pagoError;
       }
 
-      console.log(" Pago registrado en AMBAS bases de datos:", pagoData);
+      console.log(" Pago registrado:", pagoData);
 
 
-      const { error: updateError } = await supabaseFailover.update("cuotas_pago", newPago.cuota_id, {
+      const { error: updateError } = await supabaseDB.update("cuotas_pago", newPago.cuota_id, {
         estado: "pagado",
         fecha_pago: new Date().toISOString(),
       });
@@ -208,7 +208,7 @@ const RegistrarPago = () => {
 
       try {
         if (selectedCuota && formData.estudiante_id) {
-          const cliente = supabaseFailover.getDirectClient();
+          const cliente = supabaseDB.getDirectClient();
 
           if (!selectedEstudiante) {
             console.error("No hay datos del estudiante guardados");
@@ -290,7 +290,7 @@ const RegistrarPago = () => {
   const { data: pagosRecientes, isLoading: loadingPagos } = useQuery({
     queryKey: ["pagos-recientes"],
     queryFn: async () => {
-      const cliente = supabaseFailover.getDirectClient();
+      const cliente = supabaseDB.getDirectClient();
       const { data, error } = await cliente
         .from("pagos")
         .select(`

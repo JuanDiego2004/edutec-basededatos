@@ -27,6 +27,7 @@ import { Input } from "@/componentes/ui/input";
 import { Badge } from "@/componentes/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/componentes/ui/avatar";
 import Profesores from "@/funcionalidades/profesores/componentes/Profesores";
+import { ThemeToggle } from "@/componentes/ThemeToggle";
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -100,6 +101,8 @@ const AdminDashboard = () => {
                   </p>
                 </div>
               </div>
+
+              <ThemeToggle />
 
               <Button variant="outline" onClick={signOut} className="hidden sm:flex">
                 <LogOut className="h-4 w-4 mr-2" />
